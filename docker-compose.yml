@@ -1,0 +1,58 @@
+version: '3.7'
+
+services:
+  ms-card:
+    build:
+      context: .
+      args:
+        artifactory_user: $ORG_GRADLE_PROJECT_artifactory_user
+        artifactory_password: $ORG_GRADLE_PROJECT_artifactory_password
+        artifactory_contextUrl: $ORG_GRADLE_PROJECT_artifactory_contextUrl
+    image: ms-card
+    hostname: ms-card
+    init: true
+    profiles:
+      - app
+
+  wiremock:
+    image: rodolpheche/wiremock:2.27.2-alpine
+    hostname: wiremock
+    volumes:
+      - ./wiremock:/home/wiremock
+    ports:
+      - "8080:8080"
+
+  redis:
+    image: redis:6.2.1-alpine
+    ports:
+      - "6379:6379"
+
+  localstack:
+    image: localstack/localstack:0.12.10
+    ports:
+      - "4566:4566"
+      - "4571:4571"
+      - "${PORT_WEB_UI-11000}:${PORT_WEB_UI-8080}"
+    environment:
+      - LOCALSTACK_SERVICES=sqs
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    volumes:
+      - "${TMPDIR:-/tmp/localstack}:/tmp/localstack"
+      - "./docker/create-queues.sh:/docker-entrypoint-initaws.d/create-queues.sh"
+    healthcheck:
+      test: awslocal sqs list-queues
+      interval: 3s
+      timeout: 10s
+
+  db:
+    image: postgres
+    volumes:
+      - ./docker/postgres-multiple-databases.sh:/docker-entrypoint-initdb.d/postgres-multiple-databases.sh
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_MULTIPLE_DATABASES=payments_db,payments_db_test
+    ports:
+      - "5432:5432"
+
+
